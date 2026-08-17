@@ -8,6 +8,9 @@ export interface CustomWallpaperRecord {
   blob: Blob;
   dataUrl?: string;
   thumbnail?: string;
+  duration?: number;
+  width?: number;
+  height?: number;
   createdAt: number;
   size: number;
 }
@@ -17,9 +20,9 @@ const DB_VERSION = 1;
 const STORE_NAME = 'wallpapers';
 
 /**
- * Capture a lightweight preview thumbnail from a video Blob
+ * Extract video metadata such as duration and dimensions
  */
-export async function generateVideoThumbnail(blob: Blob): Promise<string> {
+export async function getVideoMetadata(blob: Blob): Promise<{ duration: number; width: number; height: number; thumbnail: string }> {
   return new Promise((resolve) => {
     try {
       const video = document.createElement('video');
@@ -28,52 +31,61 @@ export async function generateVideoThumbnail(blob: Blob): Promise<string> {
       video.muted = true;
       video.playsInline = true;
       video.crossOrigin = 'anonymous';
-      video.currentTime = 0.5;
 
       const cleanup = () => {
         URL.revokeObjectURL(url);
         video.remove();
       };
 
-      const captureFrame = () => {
+      const handleCapture = () => {
+        let thumbnail = '';
         try {
           const canvas = document.createElement('canvas');
-          canvas.width = 320;
-          canvas.height = 180;
+          canvas.width = 360;
+          canvas.height = 200;
           const ctx = canvas.getContext('2d');
           if (ctx) {
             ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-            const thumbData = canvas.toDataURL('image/jpeg', 0.7);
-            cleanup();
-            resolve(thumbData);
-            return;
+            thumbnail = canvas.toDataURL('image/jpeg', 0.75);
           }
         } catch {
-          // Fallback
+          // ignore canvas extraction error
         }
+
+        const duration = video.duration || 0;
+        const width = video.videoWidth || 0;
+        const height = video.videoHeight || 0;
         cleanup();
-        resolve('');
+        resolve({ duration, width, height, thumbnail });
       };
 
-      video.onloadeddata = () => {
-        video.currentTime = Math.min(1, (video.duration || 1) / 2);
+      video.onloadedmetadata = () => {
+        video.currentTime = Math.min(1, (video.duration || 1) / 3);
       };
 
-      video.onseeked = captureFrame;
+      video.onseeked = handleCapture;
+
       video.onerror = () => {
         cleanup();
-        resolve('');
+        resolve({ duration: 0, width: 0, height: 0, thumbnail: '' });
       };
 
-      // Timeout fallback in 3 seconds
       setTimeout(() => {
         cleanup();
-        resolve('');
-      }, 3000);
+        resolve({ duration: 0, width: 0, height: 0, thumbnail: '' });
+      }, 3500);
     } catch {
-      resolve('');
+      resolve({ duration: 0, width: 0, height: 0, thumbnail: '' });
     }
   });
+}
+
+/**
+ * Capture a lightweight preview thumbnail from a video Blob
+ */
+export async function generateVideoThumbnail(blob: Blob): Promise<string> {
+  const meta = await getVideoMetadata(blob);
+  return meta.thumbnail;
 }
 
 function openDB(): Promise<IDBDatabase> {
@@ -105,9 +117,17 @@ export async function saveWallpaperBlob(
 ): Promise<string> {
   try {
     let thumbnail = customThumbnail || '';
-    if (!thumbnail && type === 'video') {
+    let duration = 0;
+    let width = 0;
+    let height = 0;
+
+    if (type === 'video') {
       try {
-        thumbnail = await generateVideoThumbnail(blob);
+        const meta = await getVideoMetadata(blob);
+        thumbnail = thumbnail || meta.thumbnail;
+        duration = meta.duration;
+        width = meta.width;
+        height = meta.height;
       } catch {
         thumbnail = '';
       }
@@ -121,6 +141,9 @@ export async function saveWallpaperBlob(
       mimeType: blob.type,
       blob,
       thumbnail,
+      duration,
+      width,
+      height,
       createdAt: Date.now(),
       size: blob.size,
     };
@@ -137,6 +160,24 @@ export async function saveWallpaperBlob(
   } catch (err) {
     console.warn('Failed to save to IndexedDB, fallback to object URL:', err);
     return URL.createObjectURL(blob);
+  }
+}
+
+export async function getWallpaperRecord(id: string): Promise<CustomWallpaperRecord | null> {
+  try {
+    const db = await openDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, 'readonly');
+      const store = tx.objectStore(STORE_NAME);
+      const req = store.get(id);
+      req.onsuccess = () => {
+        const record = req.result as CustomWallpaperRecord | undefined;
+        resolve(record || null);
+      };
+      req.onerror = () => reject(req.error);
+    });
+  } catch {
+    return null;
   }
 }
 

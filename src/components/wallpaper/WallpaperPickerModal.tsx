@@ -9,19 +9,23 @@ import {
   Volume2,
   VolumeX,
   Play,
+  Pause,
   Check,
   Trash2,
   Link,
-  Eye,
   Sliders,
   RotateCcw,
-  Zap,
+  Maximize2,
+  Info,
+  Clock,
+  HardDrive,
 } from 'lucide-react';
 import { useSettingsStore } from '@/lib/settingsStore';
 import {
   saveWallpaperBlob,
   getAllCustomWallpapers,
   deleteCustomWallpaper,
+  getVideoMetadata,
   CustomWallpaperRecord,
 } from '@/lib/wallpaperStorage';
 import { toast } from 'sonner';
@@ -102,13 +106,22 @@ export const WallpaperPickerModal: React.FC<WallpaperPickerModalProps> = ({
   const [customUrlInput, setCustomUrlInput] = useState('');
   const [savedWallpapers, setSavedWallpapers] = useState<CustomWallpaperRecord[]>([]);
   const [isUploading, setIsUploading] = useState(false);
-  const [previewingVideoUrl, setPreviewingVideoUrl] = useState<string | null>(null);
+  const [isDraggingOver, setIsDraggingOver] = useState(false);
+  const [previewVideoSrc, setPreviewVideoSrc] = useState<string | null>(null);
+  const [previewMeta, setPreviewMeta] = useState<{ duration?: number; width?: number; height?: number; name?: string } | null>(null);
+  const [isPreviewPlaying, setIsPreviewPlaying] = useState(true);
+
   const videoInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
+  const previewVideoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
     if (isOpen) {
       loadSavedWallpapers();
+      if (settings.backgroundMode === 'custom-video' && settings.customVideoUrl) {
+        setPreviewVideoSrc(settings.customVideoUrl);
+        setPreviewMeta({ name: settings.customVideoName || 'Custom Video' });
+      }
     }
   }, [isOpen]);
 
@@ -124,17 +137,18 @@ export const WallpaperPickerModal: React.FC<WallpaperPickerModalProps> = ({
   const handleVideoFileUpload = async (file: File) => {
     if (!file) return;
 
-    if (!file.type.startsWith('video/')) {
-      toast.error('Please select a valid video file (.mp4, .webm, .mov, etc.)');
+    if (!file.type.startsWith('video/') && !file.name.match(/\.(mp4|webm|mov|mkv|m4v|avi)$/i)) {
+      toast.error('Please select a valid video file (.mp4, .webm, .mov, .mkv, .m4v)');
       return;
     }
 
     setIsUploading(true);
-    const toastId = toast.loading(`Processing video "${file.name}"...`);
+    const toastId = toast.loading(`Importing & indexing video "${file.name}"...`);
 
     try {
+      const meta = await getVideoMetadata(file);
       const id = `video_${Date.now()}`;
-      const blobUrl = await saveWallpaperBlob(id, file, 'video', file.name);
+      const blobUrl = await saveWallpaperBlob(id, file, 'video', file.name, meta.thumbnail);
 
       setSetting('customVideoUrl', blobUrl);
       setSetting('customVideoId', id);
@@ -142,15 +156,26 @@ export const WallpaperPickerModal: React.FC<WallpaperPickerModalProps> = ({
       setSetting('backgroundMode', 'custom-video');
       setSetting('videoBackgroundEnabled', true);
 
-      toast.success(`Video wallpaper "${file.name}" set & saved!`, { id: toastId });
+      setPreviewVideoSrc(blobUrl);
+      setPreviewMeta({
+        name: file.name,
+        duration: meta.duration,
+        width: meta.width,
+        height: meta.height,
+      });
+
+      toast.success(`Video wallpaper "${file.name}" applied & saved!`, { id: toastId });
       await loadSavedWallpapers();
     } catch (err) {
       console.error('Error saving video wallpaper:', err);
-      // Fallback
+      // Fallback object URL
       const directUrl = URL.createObjectURL(file);
       setSetting('customVideoUrl', directUrl);
+      setSetting('customVideoName', file.name);
       setSetting('backgroundMode', 'custom-video');
       setSetting('videoBackgroundEnabled', true);
+      setPreviewVideoSrc(directUrl);
+      setPreviewMeta({ name: file.name });
       toast.success(`Video wallpaper applied!`, { id: toastId });
     } finally {
       setIsUploading(false);
@@ -197,6 +222,8 @@ export const WallpaperPickerModal: React.FC<WallpaperPickerModalProps> = ({
     setSetting('customVideoName', 'Web Video Stream');
     setSetting('backgroundMode', 'custom-video');
     setSetting('videoBackgroundEnabled', true);
+    setPreviewVideoSrc(url);
+    setPreviewMeta({ name: 'Web Video Stream' });
     toast.success('Web video wallpaper applied!');
     setCustomUrlInput('');
   };
@@ -211,6 +238,8 @@ export const WallpaperPickerModal: React.FC<WallpaperPickerModalProps> = ({
       setSetting('backgroundMode', 'custom-video');
     }
     setSetting('videoBackgroundEnabled', true);
+    setPreviewVideoSrc(video.url);
+    setPreviewMeta({ name: video.name });
     toast.success(`Applied "${video.name}" wallpaper!`);
   };
 
@@ -222,6 +251,13 @@ export const WallpaperPickerModal: React.FC<WallpaperPickerModalProps> = ({
       setSetting('customVideoName', rec.name);
       setSetting('backgroundMode', 'custom-video');
       setSetting('videoBackgroundEnabled', true);
+      setPreviewVideoSrc(url);
+      setPreviewMeta({
+        name: rec.name,
+        duration: rec.duration,
+        width: rec.width,
+        height: rec.height,
+      });
       toast.success(`Applied video "${rec.name}"!`);
     } else {
       const url = rec.dataUrl || URL.createObjectURL(rec.blob);
@@ -252,20 +288,64 @@ export const WallpaperPickerModal: React.FC<WallpaperPickerModalProps> = ({
     setSetting('videoBackgroundOverlay', 0.35);
     setSetting('videoBlur', 0);
     setSetting('videoMuted', true);
+    setPreviewVideoSrc(null);
+    setPreviewMeta(null);
     toast.info('Reset to default Anime Warrior wallpaper');
+  };
+
+  // Drag and drop handlers
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingOver(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingOver(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingOver(false);
+
+    const files = e.dataTransfer.files;
+    if (files && files.length > 0) {
+      const file = files[0];
+      if (file.type.startsWith('video/') || file.name.match(/\.(mp4|webm|mov|mkv|m4v)$/i)) {
+        setActiveTab('video');
+        handleVideoFileUpload(file);
+      } else if (file.type.startsWith('image/')) {
+        setActiveTab('image');
+        handleImageFileUpload(file);
+      } else {
+        toast.error('Please drop a video (.mp4, .webm, .mov) or image file.');
+      }
+    }
   };
 
   if (!isOpen) return null;
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/85 backdrop-blur-md">
+      <div
+        className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/85 backdrop-blur-md"
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+      >
         <motion.div
           initial={{ opacity: 0, scale: 0.95, y: 16 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 16 }}
           transition={{ duration: 0.2, ease: 'easeOut' }}
-          className="bg-[#0e0e14] border border-white/12 rounded-3xl w-full max-w-4xl max-h-[92vh] flex flex-col overflow-hidden shadow-2xl text-white"
+          className={`bg-[#0e0e14] border rounded-3xl w-full max-w-4xl max-h-[92vh] flex flex-col overflow-hidden shadow-2xl text-white transition-colors duration-200 ${
+            isDraggingOver
+              ? 'border-orange-500 ring-4 ring-orange-500/20 shadow-orange-500/20'
+              : 'border-white/12'
+          }`}
         >
           {/* Header */}
           <div className="px-6 py-4 border-b border-white/10 flex items-center justify-between bg-black/40">
@@ -281,7 +361,7 @@ export const WallpaperPickerModal: React.FC<WallpaperPickerModalProps> = ({
                   </span>
                 </h2>
                 <p className="text-xs text-white/50">
-                  Upload custom videos, live shader presets, or 4K animated wallpapers.
+                  Select and display local video files, live shader presets, or 4K animated backgrounds.
                 </p>
               </div>
             </div>
@@ -310,7 +390,7 @@ export const WallpaperPickerModal: React.FC<WallpaperPickerModalProps> = ({
           {/* Navigation Tabs */}
           <div className="px-6 pt-3 pb-2 border-b border-white/10 flex items-center gap-2 bg-black/20 overflow-x-auto no-scrollbar">
             {[
-              { id: 'video', label: '🎥 Video Wallpaper', desc: 'Custom & 4K Videos' },
+              { id: 'video', label: '🎥 Local & 4K Video', desc: 'Custom local files & 4K streams' },
               { id: 'live', label: '🌌 Live Shaders', desc: '60FPS Interactive' },
               { id: 'presets', label: '⚔️ Anime & Legends', desc: 'Anime & Gojo Satoru' },
               { id: 'image', label: '🖼️ Custom Image', desc: 'Photo & Art' },
@@ -333,21 +413,33 @@ export const WallpaperPickerModal: React.FC<WallpaperPickerModalProps> = ({
           {/* Tab Content Body */}
           <div className="flex-1 overflow-y-auto p-6 space-y-6">
             {/* ──────────────────────────────────────────────────────────── */}
-            {/* TAB 1: VIDEO WALLPAPERS */}
+            {/* TAB 1: LOCAL & 4K VIDEO WALLPAPERS */}
             {/* ──────────────────────────────────────────────────────────── */}
             {activeTab === 'video' && (
               <div className="space-y-6">
-                {/* Upload Video Box */}
+                {/* Upload & Dropzone Box */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {/* Upload Card */}
-                  <div className="p-5 rounded-2xl bg-gradient-to-br from-white/[0.04] to-white/[0.01] border border-white/10 flex flex-col justify-between space-y-4">
+                  {/* Local Video File Picker & Dropzone */}
+                  <div
+                    onClick={() => videoInputRef.current?.click()}
+                    className={`p-5 rounded-2xl border flex flex-col justify-between space-y-4 cursor-pointer transition-all ${
+                      isDraggingOver
+                        ? 'bg-orange-500/20 border-orange-500/80 scale-[1.01]'
+                        : 'bg-gradient-to-br from-orange-500/[0.08] to-purple-500/[0.04] border-orange-500/30 hover:border-orange-500/50'
+                    }`}
+                  >
                     <div>
-                      <div className="flex items-center gap-2 text-sm font-semibold text-white">
-                        <Upload size={16} className="text-orange-400" />
-                        <span>Upload Video Wallpaper</span>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2 text-sm font-semibold text-white">
+                          <Upload size={16} className="text-orange-400" />
+                          <span>Select Local Video File</span>
+                        </div>
+                        <span className="px-2 py-0.5 rounded-full text-[10px] bg-orange-500/20 text-orange-300 font-bold border border-orange-500/30">
+                          Offline & Instant
+                        </span>
                       </div>
-                      <p className="text-xs text-white/50 mt-1">
-                        Select any video file from your device (.mp4, .webm, .mov, .m4v). Saved permanently in your browser.
+                      <p className="text-xs text-white/60 mt-1.5 leading-relaxed">
+                        Drag and drop your local video or click to select from storage. Supports <strong>.mp4, .webm, .mov, .mkv</strong> up to 4K 120 FPS.
                       </p>
                     </div>
 
@@ -362,33 +454,28 @@ export const WallpaperPickerModal: React.FC<WallpaperPickerModalProps> = ({
                       }}
                     />
 
-                    <button
-                      type="button"
-                      disabled={isUploading}
-                      onClick={() => videoInputRef.current?.click()}
-                      className="w-full py-3 px-4 rounded-xl bg-orange-500/20 hover:bg-orange-500/30 border border-orange-500/40 text-orange-300 text-xs font-semibold flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-50"
-                    >
+                    <div className="w-full py-3 px-4 rounded-xl bg-orange-500/20 hover:bg-orange-500/30 border border-orange-500/40 text-orange-300 text-xs font-semibold flex items-center justify-center gap-2 transition-all">
                       <Film size={16} />
-                      <span>{isUploading ? 'Processing Video...' : 'Choose Video File from Device'}</span>
-                    </button>
+                      <span>{isUploading ? 'Importing Video...' : 'Browse Local Files / Drop Video Here'}</span>
+                    </div>
                   </div>
 
-                  {/* Direct URL Card */}
+                  {/* Direct Web Video Stream URL */}
                   <div className="p-5 rounded-2xl bg-gradient-to-br from-white/[0.04] to-white/[0.01] border border-white/10 flex flex-col justify-between space-y-4">
                     <div>
                       <div className="flex items-center gap-2 text-sm font-semibold text-white">
                         <Link size={16} className="text-cyan-400" />
-                        <span>Web Video Stream URL</span>
+                        <span>Web Video Stream / URL</span>
                       </div>
-                      <p className="text-xs text-white/50 mt-1">
-                        Paste a direct URL to any MP4/WebM video stream or online animated wallpaper.
+                      <p className="text-xs text-white/50 mt-1.5 leading-relaxed">
+                        Paste a direct URL to any remote MP4/WebM video stream or online animated wallpaper.
                       </p>
                     </div>
 
                     <div className="flex items-center gap-2">
                       <input
                         type="url"
-                        placeholder="https://example.com/wallpaper.mp4"
+                        placeholder="https://.../video.mp4 or stream link"
                         value={customUrlInput}
                         onChange={(e) => setCustomUrlInput(e.target.value)}
                         onKeyDown={(e) => e.key === 'Enter' && handleApplyVideoUrl()}
@@ -405,14 +492,169 @@ export const WallpaperPickerModal: React.FC<WallpaperPickerModalProps> = ({
                   </div>
                 </div>
 
+                {/* Live Video Preview Box (If a video is active) */}
+                {previewVideoSrc && (
+                  <div className="p-4 rounded-2xl bg-black/60 border border-orange-500/30 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2 text-xs font-bold text-orange-400">
+                        <Film size={14} />
+                        <span>Active Video Background Preview</span>
+                      </div>
+                      {previewMeta?.name && (
+                        <span className="text-[11px] text-white/60 truncate max-w-xs">
+                          {previewMeta.name}
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="relative w-full h-48 sm:h-56 rounded-xl overflow-hidden bg-black/80 border border-white/10 flex items-center justify-center group">
+                      <video
+                        ref={previewVideoRef}
+                        src={previewVideoSrc}
+                        autoPlay
+                        loop
+                        muted={settings.videoMuted ?? true}
+                        playsInline
+                        className={`w-full h-full ${
+                          settings.videoFit === 'contain' ? 'object-contain' : 'object-cover'
+                        }`}
+                        style={{
+                          filter: `brightness(${settings.backgroundMode === 'custom-video' ? 1.1 : 1}) ${
+                            (settings.videoBlur ?? 0) > 0 ? `blur(${settings.videoBlur}px)` : ''
+                          }`,
+                        }}
+                      />
+
+                      {/* Video Overlay Tint Preview */}
+                      <div
+                        className="absolute inset-0 pointer-events-none"
+                        style={{
+                          backgroundColor: `rgba(5, 4, 10, ${settings.videoBackgroundOverlay ?? 0.35})`,
+                        }}
+                      />
+
+                      {/* Play/Pause Control Overlay */}
+                      <div className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (previewVideoRef.current) {
+                              if (previewVideoRef.current.paused) {
+                                previewVideoRef.current.play();
+                                setIsPreviewPlaying(true);
+                              } else {
+                                previewVideoRef.current.pause();
+                                setIsPreviewPlaying(false);
+                              }
+                            }
+                          }}
+                          className="w-12 h-12 rounded-full bg-black/70 hover:bg-orange-500 text-white flex items-center justify-center transition-all shadow-xl cursor-pointer"
+                        >
+                          {isPreviewPlaying ? <Pause size={20} /> : <Play size={20} className="ml-0.5" />}
+                        </button>
+                      </div>
+
+                      {/* Resolution & Duration Tag */}
+                      <div className="absolute bottom-2 left-2 flex items-center gap-2">
+                        {previewMeta?.width && previewMeta?.height && (
+                          <span className="px-2 py-0.5 rounded-md bg-black/70 backdrop-blur-md text-[10px] font-mono text-white/80 border border-white/10">
+                            {previewMeta.width}x{previewMeta.height}
+                          </span>
+                        )}
+                        {previewMeta?.duration ? (
+                          <span className="px-2 py-0.5 rounded-md bg-black/70 backdrop-blur-md text-[10px] font-mono text-white/80 border border-white/10 flex items-center gap-1">
+                            <Clock size={10} />
+                            {Math.round(previewMeta.duration)}s
+                          </span>
+                        ) : null}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* My Uploaded / Saved Local Video Wallpapers */}
+                {savedWallpapers.filter((w) => w.type === 'video').length > 0 && (
+                  <div className="space-y-3 pt-2">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-xs font-bold text-white/80 uppercase tracking-wider flex items-center gap-1.5">
+                        <HardDrive size={14} className="text-orange-400" />
+                        <span>Saved Local Videos ({savedWallpapers.filter((w) => w.type === 'video').length})</span>
+                      </h3>
+                      <span className="text-[11px] text-white/40">Stored locally in IndexedDB</span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                      {savedWallpapers
+                        .filter((w) => w.type === 'video')
+                        .map((rec) => {
+                          const isActive = settings.customVideoId === rec.id;
+                          return (
+                            <div
+                              key={rec.id}
+                              onClick={() => handleApplySavedWallpaper(rec)}
+                              className={`p-3 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between gap-2.5 relative group ${
+                                isActive
+                                  ? 'bg-orange-500/20 border-orange-500/60 ring-1 ring-orange-500/40 shadow-lg shadow-orange-500/10'
+                                  : 'bg-white/5 border-white/10 hover:bg-white/10 hover:border-white/20'
+                              }`}
+                            >
+                              {rec.thumbnail ? (
+                                <div className="w-full h-24 rounded-xl overflow-hidden bg-black/40 border border-white/10 relative">
+                                  <img
+                                    src={rec.thumbnail}
+                                    alt={rec.name}
+                                    className="w-full h-full object-cover"
+                                  />
+                                  <div className="absolute inset-0 bg-black/20 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <Play size={20} className="text-white drop-shadow" />
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className="w-full h-20 rounded-xl bg-black/40 border border-white/10 flex items-center justify-center text-white/40">
+                                  <Film size={24} />
+                                </div>
+                              )}
+
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="truncate flex-1">
+                                  <div className="text-xs font-semibold text-white truncate">{rec.name}</div>
+                                  <div className="text-[10px] text-white/40 flex items-center gap-1.5 mt-0.5">
+                                    <span>{(rec.size / (1024 * 1024)).toFixed(1)} MB</span>
+                                    {rec.duration ? <span>• {Math.round(rec.duration)}s</span> : null}
+                                  </div>
+                                </div>
+
+                                <button
+                                  type="button"
+                                  title="Delete video from storage"
+                                  onClick={(e) => handleDeleteSavedWallpaper(e, rec.id)}
+                                  className="w-7 h-7 rounded-lg bg-white/5 hover:bg-rose-500/20 hover:text-rose-300 text-white/40 flex items-center justify-center transition-colors cursor-pointer"
+                                >
+                                  <Trash2 size={13} />
+                                </button>
+                              </div>
+
+                              {isActive && (
+                                <div className="text-[10px] font-bold text-emerald-400 flex items-center gap-1">
+                                  <Check size={11} /> Currently Active
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                    </div>
+                  </div>
+                )}
+
                 {/* Featured 4K Curated Video Wallpapers */}
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
                     <h3 className="text-xs font-bold text-white/80 uppercase tracking-wider flex items-center gap-1.5">
                       <Sparkles size={14} className="text-yellow-400" />
-                      <span>Featured 4K Live Video Wallpapers</span>
+                      <span>Featured 4K Animated Wallpapers</span>
                     </h3>
-                    <span className="text-[11px] text-white/40">Ready to play</span>
+                    <span className="text-[11px] text-white/40">Click to apply</span>
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -464,81 +706,11 @@ export const WallpaperPickerModal: React.FC<WallpaperPickerModalProps> = ({
                   </div>
                 </div>
 
-                {/* My Uploaded / Saved Video Wallpapers */}
-                {savedWallpapers.filter((w) => w.type === 'video').length > 0 && (
-                  <div className="space-y-3 pt-2">
-                    <h3 className="text-xs font-bold text-white/80 uppercase tracking-wider flex items-center gap-1.5">
-                      <Film size={14} className="text-orange-400" />
-                      <span>My Uploaded Videos ({savedWallpapers.filter((w) => w.type === 'video').length})</span>
-                    </h3>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                      {savedWallpapers
-                        .filter((w) => w.type === 'video')
-                        .map((rec) => {
-                          const isActive = settings.customVideoId === rec.id;
-                          return (
-                            <div
-                              key={rec.id}
-                              onClick={() => handleApplySavedWallpaper(rec)}
-                              className={`p-3 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between gap-2.5 relative group ${
-                                isActive
-                                  ? 'bg-orange-500/20 border-orange-500/60 ring-1 ring-orange-500/40'
-                                  : 'bg-white/5 border-white/10 hover:bg-white/10'
-                              }`}
-                            >
-                              {rec.thumbnail ? (
-                                <div className="w-full h-24 rounded-xl overflow-hidden bg-black/40 border border-white/10 relative">
-                                  <img
-                                    src={rec.thumbnail}
-                                    alt={rec.name}
-                                    className="w-full h-full object-cover"
-                                  />
-                                  <div className="absolute inset-0 bg-black/20 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                                    <Play size={20} className="text-white drop-shadow" />
-                                  </div>
-                                </div>
-                              ) : (
-                                <div className="w-full h-20 rounded-xl bg-black/40 border border-white/10 flex items-center justify-center text-white/40">
-                                  <Film size={24} />
-                                </div>
-                              )}
-
-                              <div className="flex items-start justify-between gap-2">
-                                <div className="truncate flex-1">
-                                  <div className="text-xs font-semibold text-white truncate">{rec.name}</div>
-                                  <div className="text-[10px] text-white/40">
-                                    {(rec.size / (1024 * 1024)).toFixed(1)} MB • Saved
-                                  </div>
-                                </div>
-
-                                <button
-                                  type="button"
-                                  title="Delete video"
-                                  onClick={(e) => handleDeleteSavedWallpaper(e, rec.id)}
-                                  className="w-7 h-7 rounded-lg bg-white/5 hover:bg-rose-500/20 hover:text-rose-300 text-white/40 flex items-center justify-center transition-colors cursor-pointer"
-                                >
-                                  <Trash2 size={13} />
-                                </button>
-                              </div>
-
-                              {isActive && (
-                                <div className="text-[10px] font-bold text-emerald-400 flex items-center gap-1">
-                                  <Check size={11} /> Currently Active
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })}
-                    </div>
-                  </div>
-                )}
-
                 {/* Video Playback & Styling Controls */}
                 <div className="p-4 rounded-2xl bg-black/40 border border-white/10 space-y-4">
                   <div className="flex items-center gap-2 text-xs font-bold text-white uppercase tracking-wider">
                     <Sliders size={14} className="text-cyan-400" />
-                    <span>Video Wallpaper Controls</span>
+                    <span>Live Video Wallpaper Settings</span>
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
@@ -840,7 +1012,7 @@ export const WallpaperPickerModal: React.FC<WallpaperPickerModalProps> = ({
           <div className="px-6 py-3 border-t border-white/10 flex items-center justify-between bg-black/50">
             <div className="text-xs text-white/50 flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-              <span>Background active: <strong>{settings.backgroundMode}</strong></span>
+              <span>Background mode: <strong className="text-white capitalize">{settings.backgroundMode.replace('-', ' ')}</strong></span>
             </div>
 
             <button

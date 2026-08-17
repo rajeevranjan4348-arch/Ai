@@ -34,93 +34,27 @@ interface Petal {
   delay: number;
 }
 
-export const MotionBackground: React.FC<MotionBackgroundProps> = ({
-  videoSrc: customVideoSrc,
-  posterSrc: customPosterSrc,
-  overlayOpacity: customOverlayOpacity,
-  playbackSpeed: customPlaybackSpeed = 1.1,
-  brightness: customBrightness = 1.2,
-  isUIActive = false,
+interface SamuraiVideoBackgroundProps {
+  videoSrc?: string;
+  posterSrc?: string;
+  overlayOpacity: number;
+  playbackSpeed: number;
+  brightness: number;
+  reduceMotion?: boolean;
+}
+
+export const SamuraiVideoBackground: React.FC<SamuraiVideoBackgroundProps> = ({
+  videoSrc = '/samurai-background.mp4',
+  posterSrc = '/samurai-poster.jpg',
+  overlayOpacity,
+  playbackSpeed = 1.1,
+  brightness = 1.2,
+  reduceMotion = false,
 }) => {
-  const { settings } = useSettingsStore();
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [isVideoLoaded, setIsVideoLoaded] = useState<boolean>(false);
   const [hasVideoError, setHasVideoError] = useState<boolean>(false);
-
-  const isEnabled = settings.videoBackgroundEnabled ?? true;
-  const bgMode = settings.backgroundMode || 'samurai-video';
-  const customImg = settings.customBackgroundImage;
-  const activeVideoSrc =
-    bgMode === 'custom-video'
-      ? settings.customVideoUrl || customVideoSrc || settings.videoBackgroundSrc || '/samurai-background.mp4'
-      : customVideoSrc || settings.videoBackgroundSrc || '/samurai-background.mp4';
-  const activePosterSrc = customPosterSrc || '/samurai-poster.jpg';
-  
-  // Subtle dark glass overlay - transparent enough to show video clearly while keeping UI readable
-  const overlayOpacity = customOverlayOpacity ?? (settings.videoBackgroundOverlay !== undefined ? Math.min(settings.videoBackgroundOverlay, 0.45) : 0.15);
-  const reduceMotion = settings.reduceMotion;
-  const playbackRate = settings.videoPlaybackSpeed || customPlaybackSpeed;
-
-  // Active state brightness dimming (e.g. slightly dimmer when active chat/input is open for readability)
-  const activeBrightness = isUIActive ? customBrightness * 0.88 : customBrightness;
-
-  if (bgMode === 'live-wallpaper') {
-    return (
-      <LiveWallpaperCanvas
-        preset={settings.liveWallpaperPreset || 'neon-nebula'}
-        overlayOpacity={overlayOpacity}
-        isUIActive={isUIActive}
-      />
-    );
-  }
-
-  if (bgMode === 'anime-warrior') {
-    return (
-      <AnimeWarriorBackground
-        customImage={customImg}
-        overlayOpacity={overlayOpacity}
-        isUIActive={isUIActive}
-      />
-    );
-  }
-
-  if (bgMode === 'gojo-anime') {
-    return (
-      <GojoAnimeBackground
-        customImage={customImg}
-        overlayOpacity={overlayOpacity}
-        isUIActive={isUIActive}
-      />
-    );
-  }
-
-  if (bgMode === 'custom-image') {
-    return (
-      <AnimeWarriorBackground
-        customImage={customImg}
-        overlayOpacity={overlayOpacity}
-        isUIActive={isUIActive}
-      />
-    );
-  }
-
-  if (bgMode === 'custom-video') {
-    return (
-      <VideoWallpaperBackground
-        videoSrc={activeVideoSrc}
-        posterSrc={activePosterSrc}
-        overlayOpacity={overlayOpacity}
-        playbackSpeed={playbackRate}
-        brightness={activeBrightness}
-        isUIActive={isUIActive}
-        blur={settings.videoBlur}
-        fit={settings.videoFit}
-        muted={settings.videoMuted}
-        volume={settings.videoVolume}
-      />
-    );
-  }
 
   // Lifecycle control: Autoplay, Loop, Seamless playback speed and pause/resume on tab blur/visibility
   useEffect(() => {
@@ -129,7 +63,7 @@ export const MotionBackground: React.FC<MotionBackgroundProps> = ({
 
     const applyPlaybackRate = () => {
       try {
-        video.playbackRate = playbackRate;
+        video.playbackRate = playbackSpeed;
       } catch {
         // Fallback gracefully
       }
@@ -178,10 +112,10 @@ export const MotionBackground: React.FC<MotionBackgroundProps> = ({
       video.removeEventListener('error', handleError);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [playbackRate, activeVideoSrc]);
+  }, [playbackSpeed, videoSrc]);
 
   // Dynamic animation durations scaled by playbackSpeed for pure CSS keyframe speed
-  const speedFactor = Math.max(0.5, customPlaybackSpeed);
+  const speedFactor = Math.max(0.5, playbackSpeed);
 
   // Generate deterministic ultra-fast embers (boosted speed, count & high luminosity)
   const embers: Ember[] = useMemo(() => {
@@ -210,15 +144,6 @@ export const MotionBackground: React.FC<MotionBackgroundProps> = ({
       delay: (i * 0.15) % 2.5,
     }));
   }, [speedFactor]);
-
-  if (!isEnabled) {
-    return (
-      <div 
-        className="fixed inset-0 w-screen h-screen min-h-[100dvh] pointer-events-none overflow-hidden z-0 select-none bg-[#06040a]"
-        aria-hidden="true"
-      />
-    );
-  }
 
   return (
     <div 
@@ -309,8 +234,8 @@ export const MotionBackground: React.FC<MotionBackgroundProps> = ({
           isVideoLoaded && !hasVideoError ? 'opacity-0' : 'opacity-100'
         }`}
         style={{
-          backgroundImage: `url(${activePosterSrc})`,
-          filter: `brightness(${activeBrightness}) contrast(1.15) saturate(1.25)`,
+          backgroundImage: `url(${posterSrc})`,
+          filter: `brightness(${brightness}) contrast(1.15) saturate(1.25)`,
           transform: 'translateZ(0)',
           willChange: 'transform',
           backfaceVisibility: 'hidden',
@@ -319,7 +244,7 @@ export const MotionBackground: React.FC<MotionBackgroundProps> = ({
       />
 
       {/* ── Full-Screen Background Video Layer (Fixed, Edge-to-Edge, Smooth Fade-in, Object-cover) ── */}
-      {activeVideoSrc && !hasVideoError && (
+      {videoSrc && !hasVideoError && (
         <div 
           className={`absolute inset-0 overflow-hidden pointer-events-none z-0 transition-opacity duration-700 ${
             isVideoLoaded ? 'opacity-100' : 'opacity-0'
@@ -333,8 +258,8 @@ export const MotionBackground: React.FC<MotionBackgroundProps> = ({
         >
           <video
             ref={videoRef}
-            src={activeVideoSrc}
-            poster={activePosterSrc}
+            src={videoSrc}
+            poster={posterSrc}
             autoPlay
             loop
             muted
@@ -344,7 +269,7 @@ export const MotionBackground: React.FC<MotionBackgroundProps> = ({
             disableRemotePlayback
             className="w-full h-full object-cover pointer-events-none"
             style={{
-              filter: `brightness(${activeBrightness}) contrast(1.2) saturate(1.3) drop-shadow(0 0 20px rgba(255, 30, 60, 0.2))`,
+              filter: `brightness(${brightness}) contrast(1.2) saturate(1.3) drop-shadow(0 0 20px rgba(255, 30, 60, 0.2))`,
               imageRendering: '-webkit-optimize-contrast',
               transform: 'translate3d(0, 0, 0)',
               willChange: 'transform, filter',
@@ -418,7 +343,7 @@ export const MotionBackground: React.FC<MotionBackgroundProps> = ({
             <stop offset="100%" stopColor="#55000a" />
           </linearGradient>
 
-          {/* Crisp, Sharp Subtle Glow Filters (Reduced Radii to Prevent Blur) */}
+          {/* Crisp, Sharp Subtle Glow Filters */}
           <filter id="crispGlow" x="-20%" y="-20%" width="140%" height="140%">
             <feGaussianBlur in="SourceGraphic" stdDeviation="4" />
           </filter>
@@ -642,7 +567,7 @@ export const MotionBackground: React.FC<MotionBackgroundProps> = ({
         </div>
       )}
 
-      {/* ── 6. Ambient Blood Eclipse Pulsing Light (Sped up to 2.5s cycle) ── */}
+      {/* ── 6. Ambient Blood Eclipse Pulsing Light ── */}
       {!reduceMotion && (
         <div
           className="absolute top-[12%] left-1/2 w-[650px] h-[650px] rounded-full bg-red-500/25 pointer-events-none will-change-transform z-[2]"
@@ -653,7 +578,7 @@ export const MotionBackground: React.FC<MotionBackgroundProps> = ({
         />
       )}
 
-      {/* ── 7. Luminous Clean Dark Transparent Overlay (Zero Blur, Pure Sharp Clarity) ── */}
+      {/* ── 7. Luminous Clean Dark Transparent Overlay ── */}
       <div 
         className="absolute inset-0 pointer-events-none transition-all duration-300 z-[4]"
         style={{
@@ -662,7 +587,7 @@ export const MotionBackground: React.FC<MotionBackgroundProps> = ({
         }}
       />
 
-      {/* Subtle Edge Vignette to Frame the Screen Elegantly */}
+      {/* Subtle Edge Vignette */}
       <div 
         className="absolute inset-0 pointer-events-none z-[4]"
         style={{
@@ -673,5 +598,109 @@ export const MotionBackground: React.FC<MotionBackgroundProps> = ({
   );
 };
 
-export default MotionBackground;
+export const MotionBackground: React.FC<MotionBackgroundProps> = ({
+  videoSrc: customVideoSrc,
+  posterSrc: customPosterSrc,
+  overlayOpacity: customOverlayOpacity,
+  playbackSpeed: customPlaybackSpeed = 1.1,
+  brightness: customBrightness = 1.2,
+  isUIActive = false,
+}) => {
+  const { settings } = useSettingsStore();
 
+  const isEnabled = settings.videoBackgroundEnabled ?? true;
+  const bgMode = settings.backgroundMode || 'samurai-video';
+  const customImg = settings.customBackgroundImage;
+  const activeVideoSrc =
+    bgMode === 'custom-video'
+      ? settings.customVideoUrl || customVideoSrc || settings.videoBackgroundSrc || '/samurai-background.mp4'
+      : customVideoSrc || settings.videoBackgroundSrc || '/samurai-background.mp4';
+  const activePosterSrc = customPosterSrc || '/samurai-poster.jpg';
+  
+  // Subtle dark glass overlay - transparent enough to show video clearly while keeping UI readable
+  const overlayOpacity = customOverlayOpacity ?? (settings.videoBackgroundOverlay !== undefined ? Math.min(settings.videoBackgroundOverlay, 0.45) : 0.15);
+  const reduceMotion = settings.reduceMotion;
+  const playbackRate = settings.videoPlaybackSpeed || customPlaybackSpeed;
+
+  // Active state brightness dimming (e.g. slightly dimmer when active chat/input is open for readability)
+  const activeBrightness = isUIActive ? customBrightness * 0.88 : customBrightness;
+
+  if (!isEnabled) {
+    return (
+      <div 
+        className="fixed inset-0 w-screen h-screen min-h-[100dvh] pointer-events-none overflow-hidden z-0 select-none bg-[#06040a]"
+        aria-hidden="true"
+      />
+    );
+  }
+
+  if (bgMode === 'live-wallpaper') {
+    return (
+      <LiveWallpaperCanvas
+        preset={settings.liveWallpaperPreset || 'neon-nebula'}
+        overlayOpacity={overlayOpacity}
+        isUIActive={isUIActive}
+      />
+    );
+  }
+
+  if (bgMode === 'anime-warrior') {
+    return (
+      <AnimeWarriorBackground
+        customImage={customImg}
+        overlayOpacity={overlayOpacity}
+        isUIActive={isUIActive}
+      />
+    );
+  }
+
+  if (bgMode === 'gojo-anime') {
+    return (
+      <GojoAnimeBackground
+        customImage={customImg}
+        overlayOpacity={overlayOpacity}
+        isUIActive={isUIActive}
+      />
+    );
+  }
+
+  if (bgMode === 'custom-image') {
+    return (
+      <AnimeWarriorBackground
+        customImage={customImg}
+        overlayOpacity={overlayOpacity}
+        isUIActive={isUIActive}
+      />
+    );
+  }
+
+  if (bgMode === 'custom-video') {
+    return (
+      <VideoWallpaperBackground
+        videoSrc={activeVideoSrc}
+        posterSrc={activePosterSrc}
+        overlayOpacity={overlayOpacity}
+        playbackSpeed={playbackRate}
+        brightness={activeBrightness}
+        isUIActive={isUIActive}
+        blur={settings.videoBlur}
+        fit={settings.videoFit}
+        muted={settings.videoMuted}
+        volume={settings.videoVolume}
+      />
+    );
+  }
+
+  return (
+    <SamuraiVideoBackground
+      videoSrc={activeVideoSrc}
+      posterSrc={activePosterSrc}
+      overlayOpacity={overlayOpacity}
+      playbackSpeed={playbackRate}
+      brightness={activeBrightness}
+      reduceMotion={reduceMotion}
+    />
+  );
+};
+
+export default MotionBackground;

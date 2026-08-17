@@ -603,27 +603,6 @@ export const HistoryPanel: React.FC<HistoryPanelProps> = ({
               </button>
 
               <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    window.dispatchEvent(new CustomEvent('open_wallpaper_studio'));
-                    onClose();
-                  }}
-                  className="w-10 h-10 rounded-full bg-[#1c1c1e] hover:bg-orange-500/20 text-orange-400 hover:text-orange-300 flex items-center justify-center transition-colors cursor-pointer border border-white/5 hover:border-orange-500/30"
-                  title="Dynamic Video Wallpaper Studio"
-                >
-                  <Film size={18} />
-                </button>
-                <button
-                  onClick={() => {
-                    if (onOpenSettings) onOpenSettings();
-                    onClose();
-                  }}
-                  className="w-10 h-10 rounded-full bg-[#1c1c1e] hover:bg-[#2c2c2e] text-white/80 hover:text-white flex items-center justify-center transition-colors cursor-pointer border border-white/5"
-                  title="Settings & Preferences"
-                >
-                  <Settings size={18} />
-                </button>
                 <ProfileAvatarButton
                   onClick={() => {
                     if (onOpenSettings) onOpenSettings();

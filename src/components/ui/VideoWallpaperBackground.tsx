@@ -1,5 +1,6 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { useSettingsStore } from '@/lib/settingsStore';
+import { getWallpaperBlobUrl } from '@/lib/wallpaperStorage';
 
 interface VideoWallpaperBackgroundProps {
   videoSrc?: string;
@@ -26,21 +27,62 @@ export const VideoWallpaperBackground: React.FC<VideoWallpaperBackgroundProps> =
   muted: customMuted,
   volume: customVolume,
 }) => {
-  const { settings } = useSettingsStore();
+  const { settings, setSetting } = useSettingsStore();
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isVideoLoaded, setIsVideoLoaded] = useState<boolean>(false);
   const [hasVideoError, setHasVideoError] = useState<boolean>(false);
-
-  const activeVideoSrc =
+  const [resolvedVideoSrc, setResolvedVideoSrc] = useState<string>(
     customVideoSrc ||
-    settings.customVideoUrl ||
-    settings.videoBackgroundSrc ||
-    '/samurai-background.mp4';
+      settings.customVideoUrl ||
+      settings.videoBackgroundSrc ||
+      '/samurai-background.mp4'
+  );
+
+  const activeVideoId = settings.customVideoId;
+
+  // Hydrate local video Blob URL from IndexedDB if needed or when video source changes
+  useEffect(() => {
+    let isMounted = true;
+
+    async function hydrateVideo() {
+      if (customVideoSrc) {
+        if (isMounted) setResolvedVideoSrc(customVideoSrc);
+        return;
+      }
+
+      if (activeVideoId) {
+        try {
+          const freshBlobUrl = await getWallpaperBlobUrl(activeVideoId);
+          if (freshBlobUrl && isMounted) {
+            setResolvedVideoSrc(freshBlobUrl);
+            setSetting('customVideoUrl', freshBlobUrl);
+            return;
+          }
+        } catch (err) {
+          console.warn('Could not restore local video blob from storage:', err);
+        }
+      }
+
+      if (settings.customVideoUrl && isMounted) {
+        setResolvedVideoSrc(settings.customVideoUrl);
+      } else if (settings.videoBackgroundSrc && isMounted) {
+        setResolvedVideoSrc(settings.videoBackgroundSrc);
+      } else if (isMounted) {
+        setResolvedVideoSrc('/samurai-background.mp4');
+      }
+    }
+
+    hydrateVideo();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [customVideoSrc, activeVideoId, settings.customVideoUrl, settings.videoBackgroundSrc, setSetting]);
 
   const overlayOpacity =
     customOverlayOpacity ??
     (settings.videoBackgroundOverlay !== undefined
-      ? Math.min(settings.videoBackgroundOverlay, 0.7)
+      ? Math.min(settings.videoBackgroundOverlay, 0.8)
       : 0.3);
 
   const playbackRate = settings.videoPlaybackSpeed || customPlaybackSpeed;
@@ -74,7 +116,20 @@ export const VideoWallpaperBackground: React.FC<VideoWallpaperBackgroundProps> =
       video.play().catch(() => {});
     };
 
-    const handleError = () => {
+    const handleError = async () => {
+      // If error occurs and we have a customVideoId in IndexedDB, try re-hydrating once
+      if (activeVideoId) {
+        try {
+          const freshBlobUrl = await getWallpaperBlobUrl(activeVideoId);
+          if (freshBlobUrl && freshBlobUrl !== resolvedVideoSrc) {
+            setResolvedVideoSrc(freshBlobUrl);
+            setSetting('customVideoUrl', freshBlobUrl);
+            return;
+          }
+        } catch {
+          // ignore
+        }
+      }
       setHasVideoError(true);
       setIsVideoLoaded(false);
     };
@@ -99,6 +154,7 @@ export const VideoWallpaperBackground: React.FC<VideoWallpaperBackgroundProps> =
     if (video.readyState >= 2) {
       setIsVideoLoaded(true);
       applyPlaybackSettings();
+      video.play().catch(() => {});
     }
 
     return () => {
@@ -110,7 +166,7 @@ export const VideoWallpaperBackground: React.FC<VideoWallpaperBackgroundProps> =
       video.removeEventListener('error', handleError);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [activeVideoSrc, playbackRate, isMuted, volume]);
+  }, [resolvedVideoSrc, playbackRate, isMuted, volume, activeVideoId, setSetting]);
 
   return (
     <div
@@ -132,7 +188,7 @@ export const VideoWallpaperBackground: React.FC<VideoWallpaperBackgroundProps> =
       />
 
       {/* ── High-Performance Background Video Element ── */}
-      {activeVideoSrc && !hasVideoError && (
+      {resolvedVideoSrc && !hasVideoError && (
         <div
           className={`absolute inset-0 overflow-hidden pointer-events-none z-0 transition-opacity duration-700 ${
             isVideoLoaded ? 'opacity-100' : 'opacity-0'
@@ -145,7 +201,7 @@ export const VideoWallpaperBackground: React.FC<VideoWallpaperBackgroundProps> =
         >
           <video
             ref={videoRef}
-            src={activeVideoSrc}
+            src={resolvedVideoSrc}
             poster={posterSrc}
             autoPlay
             loop
