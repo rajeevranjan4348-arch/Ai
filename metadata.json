@@ -1,0 +1,11 @@
+{
+  "name": "Rishi & Manus AI",
+  "description": "Dual-mode AI system featuring Rishi AI and Manus autonomous agent engine with sidebar navigation.",
+  "requestFramePermissions": [
+    "microphone",
+    "geolocation"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
