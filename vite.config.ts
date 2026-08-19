@@ -589,6 +589,8 @@ Make complex answers structured and easy to scan.`;
 
 export default defineConfig({
   plugins: [react(), geminiApiPlugin()],
+  // GitHub Pages serves this repository under /Ai/; local development stays at /.
+  base: process.env.GITHUB_ACTIONS ? '/Ai/' : '/',
   define: {
     'process.env.GOOGLE_MAPS_PLATFORM_KEY': JSON.stringify(process.env.GOOGLE_MAPS_PLATFORM_KEY || ''),
   },
