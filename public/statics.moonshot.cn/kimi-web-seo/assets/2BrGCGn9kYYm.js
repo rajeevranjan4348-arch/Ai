@@ -1,0 +1,3 @@
+/*! pre,cn,a867b42,2026-08-19 08:28:42 */
+import{$r as defineComponent,Ji as toDisplayString,gi as openBlock,qr as createElementBlock}from"./framework-CkiXU411.js";import{t as _plugin_vue_export_helper_default}from"./_plugin-vue_export-helper-Bsv5l1ED.js";var _hoisted_1={class:"running-text"},RunningText_default=_plugin_vue_export_helper_default(defineComponent({__name:"RunningText",props:{text:{}},setup:__props=>(_ctx,_cache)=>(openBlock(),createElementBlock("div",_hoisted_1,toDisplayString(__props.text),1))}),[["__scopeId","data-v-da3e6128"]]);export{RunningText_default as t};
+//# sourceMappingURL=RunningText-Y0nVCMdc.js.map

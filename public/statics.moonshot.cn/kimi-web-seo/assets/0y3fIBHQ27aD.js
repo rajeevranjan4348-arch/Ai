@@ -1,0 +1,3 @@
+/*! pre,cn,a867b42,2026-08-19 08:28:42 */
+import{$r as defineComponent,Bi as shallowRef,Kr as createCommentVNode,fi as onMounted,yi as renderSlot}from"./framework-CkiXU411.js";var CSROnly_default=defineComponent({__name:"CSROnly",setup(__props){const show=shallowRef(!1);return onMounted(()=>{show.value=!0}),(_ctx,_cache)=>show.value?renderSlot(_ctx.$slots,"default",{key:0}):createCommentVNode("",!0)}});export{CSROnly_default as t};
+//# sourceMappingURL=CSROnly-BthtDJpe.js.map

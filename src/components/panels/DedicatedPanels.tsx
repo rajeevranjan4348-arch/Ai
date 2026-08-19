@@ -48,7 +48,7 @@ import { HardDrive, Send, Video as VideoIcon } from 'lucide-react';
 import { ImageGeneratorUI } from './ImageGeneratorUI';
 import { ResourceSearchUI } from '@/components/resources/ResourceSearchUI';
 
-export type PanelType = 'chat' | 'images' | 'library' | 'projects' | 'manus' | 'maps' | 'resources';
+export type PanelType = 'chat' | 'images' | 'library' | 'projects' | 'manus' | 'maps' | 'resources' | 'kimi';
 
 // ============================================================
 // DATA TYPES & LOCAL STORAGE HELPERS

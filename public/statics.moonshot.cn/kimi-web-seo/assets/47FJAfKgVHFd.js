@@ -1,0 +1,3 @@
+/*! pre,cn,a867b42,2026-08-19 08:28:42 */
+import{pn as file_google_protobuf_any,xn as fileDesc}from"./framework-CkiXU411.js";var file_google_api_httpbody=fileDesc("Chlnb29nbGUvYXBpL2h0dHBib2R5LnByb3RvEgpnb29nbGUuYXBpIlgKCEh0dHBCb2R5EhQKDGNvbnRlbnRfdHlwZRgBIAEoCRIMCgRkYXRhGAIgASgMEigKCmV4dGVuc2lvbnMYAyADKAsyFC5nb29nbGUucHJvdG9idWYuQW55QmUKDmNvbS5nb29nbGUuYXBpQg1IdHRwQm9keVByb3RvUAFaO2dvb2dsZS5nb2xhbmcub3JnL2dlbnByb3RvL2dvb2dsZWFwaXMvYXBpL2h0dHBib2R5O2h0dHBib2R5ogIER0FQSWIGcHJvdG8z",[file_google_protobuf_any]);export{file_google_api_httpbody as t};
+//# sourceMappingURL=httpbody_pb-CYgPMvVD.js.map

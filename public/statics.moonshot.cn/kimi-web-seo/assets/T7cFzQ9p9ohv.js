@@ -1,0 +1,2 @@
+/*! pre,cn,a867b42,2026-08-19 08:28:42 */
+var _plugin_vue_export_helper_default=(sfc,props)=>{const target=sfc.__vccOpts||sfc;for(const[key,val]of props)target[key]=val;return target};export{_plugin_vue_export_helper_default as t};

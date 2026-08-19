@@ -14,6 +14,7 @@ import {
   Settings,
   Image as ImageIcon,
   Film,
+  ExternalLink,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Thread } from '@/hooks/useThreads';
@@ -83,6 +84,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
     } else if (featureId === 'resources') {
       toast.info('Resources & Google Search Hub Active');
       if (onSelectFeature) onSelectFeature('resources');
+    } else if (featureId === 'kimi') {
+      toast.info('Imported Kimi Website Active');
+      if (onSelectFeature) onSelectFeature('kimi');
     }
   };
 
@@ -203,6 +207,20 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <div className="flex flex-col items-start min-w-0 text-left">
             <span className="text-base font-semibold leading-tight">Resources & Search</span>
             <span className="text-[11px] text-white/50 font-normal leading-tight truncate">Google Search & Docs</span>
+          </div>
+        </button>
+
+        <button
+          onClick={() => handleFeatureClick('kimi')}
+          className={cn(
+            "w-full flex items-center gap-3.5 px-3 py-2.5 rounded-xl text-white text-lg font-medium transition-colors cursor-pointer group",
+            activeFeature === 'kimi' ? "bg-white/15 font-semibold text-violet-300" : "hover:bg-white/10"
+          )}
+        >
+          <ExternalLink size={22} className="shrink-0 text-violet-300 group-hover:scale-105 transition-transform" />
+          <div className="flex flex-col items-start min-w-0 text-left">
+            <span className="text-base font-semibold leading-tight">Kimi Website</span>
+            <span className="text-[11px] text-white/50 font-normal leading-tight truncate">Imported static experience</span>
           </div>
         </button>
 

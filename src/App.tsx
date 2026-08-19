@@ -8,6 +8,7 @@ import { AppLauncherModal } from '@/components/launcher/AppLauncherModal';
 import { FpsBoostModal } from '@/components/tools/FpsBoostModal';
 import { WallpaperPickerModal } from '@/components/wallpaper/WallpaperPickerModal';
 import { DedicatedPanel, ImagesUI, LibraryUI, ProjectsUI, ResourceSearchUI, PanelType } from '@/components/panels/DedicatedPanels';
+import { KimiSitePanel } from '@/components/panels/KimiSitePanel';
 import { GoogleMapsView } from '@/components/maps/GoogleMapsView';
 import { ErrorBoundary } from '@/components/common/ErrorBoundary';
 import { Image as ImageIcon, Library as LibraryIcon, Folder as FolderIcon } from 'lucide-react';
@@ -330,6 +331,8 @@ function App() {
                 }}
               />
             </div>
+          ) : activePanel === 'kimi' ? (
+            <KimiSitePanel onBackToChat={() => setActivePanel('chat')} />
           ) : loadingThread ? (
             <div className="h-full flex items-center justify-center">
               <div className="animate-pulse w-8 h-8 rounded-full bg-muted" />

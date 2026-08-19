@@ -1,0 +1,3 @@
+/*! pre,cn,a867b42,2026-08-19 08:28:42 */
+import{Jt as isServer}from"./framework-CkiXU411.js";import{Dt as useI18n,kt as IS_DEVELOPMENT}from"./kimi.utils-v8vPOv6Y.js";function sendLog(lang,params){if(isServer)return;const logParams={locale:lang.value};"params"in params&&Object.assign(logParams,params.params),IS_DEVELOPMENT&&console.warn("发送了一个埋点",params),window.collectEvent(params.event,logParams)}function useLog(){const{locale:locale}=useI18n();return{sendLog:sendLog.bind(null,locale)}}export{useLog as t};
+//# sourceMappingURL=logs-yM_9wBCm.js.map
